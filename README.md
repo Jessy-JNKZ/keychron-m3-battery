@@ -8,6 +8,8 @@
 
 **Keychron M3 Battery Monitor** est un utilitaire léger et élégant pour Windows conçu spécifiquement pour surveiller le niveau de batterie de votre souris **Keychron M3** (via le dongle USB) directement depuis la barre des tâches (systray).
 
+![Icône de l'application](images/Keychron%20App%20ico.png)
+
 ### 🚀 Fonctionnalités
 * **Lecture HID Native** : Extraction directe des données matérielles sans nécessiter le logiciel constructeur lourd.
 * **Affichage minimaliste et pro** : 4 styles au choix (Cercle épuré, Cercle plein, Batterie horizontale, Batterie verticale) avec codes couleur dynamiques (Vert, Orange, Rouge).
@@ -15,7 +17,8 @@
 * **Alertes de batterie faible** : Notification native Windows lorsque le niveau descend sous les 15 %.
 * **Personnalisation complète** : Modification des seuils de couleurs, de la fréquence d'actualisation et gestion du lancement au démarrage directement depuis le menu contextuel.
 
-![Capture d'écran 1](keychron%20battery%201.png) ![Capture d'écran 2](keychron%20battery%202.png)
+![Interface en Français 1](images/Keychron%20App%20FR1.png)
+![Interface en Français 2](images/Keychron%20App%20FR2.png)
 
 ### 📦 Installation (Utilisateur Lambda)
 1. Téléchargez la dernière version de l'installeur (**`KeychronBatterySetup.exe`**) depuis l'onglet *Releases* du dépôt.
@@ -34,6 +37,8 @@ Lors de l'installation de l'exécutable, **Windows Defender** ou certains antivi
 
 **Keychron M3 Battery Monitor** is a lightweight and elegant Windows utility designed specifically to monitor the battery level of your **Keychron M3** mouse (via the USB dongle) directly from the system tray.
 
+![Icône de l'application](images/Keychron%20App%20ico.png)
+
 ### 🚀 Features
 * **Native HID Communication**: Direct hardware data extraction without heavy vendor software.
 * **Clean & Professional UI**: 4 visual styles (Clean circle, Solid circle, Horizontal battery, Vertical battery) with dynamic color coding (Green, Orange, Red).
@@ -41,7 +46,8 @@ Lors de l'installation de l'exécutable, **Windows Defender** ou certains antivi
 * **Low Battery Alerts**: Native Windows notifications when the battery drops below 15%.
 * **Full Customization**: Easily change color thresholds, polling intervals, and startup behavior straight from the tray menu.
 
-![Capture d'écran 1](keychron%20battery%201.png) ![Capture d'écran 2](keychron%20battery%202.png)
+![English Interface 1](images/Keychron%20App%20EN1.png)
+![English Interface 2](images/Keychron%20App%20EN2.png)
 
 ### 📦 Installation
 1. Download the latest installer (**`KeychronBatterySetup.exe`**) from the *Releases* section.
