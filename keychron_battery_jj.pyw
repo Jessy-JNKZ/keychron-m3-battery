@@ -52,7 +52,94 @@ DEFAULT_CONFIG = {
     "poll_interval": 30,
     "style": "Cercle épuré",
     "color_high": 50,
-    "color_low": 20
+    "color_low": 20,
+    "language": "auto"  # "auto", "fr", ou "en"
+}
+
+# --- SYSTÈME DE TRADUCTION ---
+def get_system_language():
+    try:
+        windll = ctypes.windll.kernel32
+        lang_id = windll.GetUserDefaultUILanguage()
+        if lang_id & 0x3FF == 0x09:
+            return "en"
+    except Exception:
+        pass
+    return "fr"
+
+translations = {
+    "fr": {
+        "offline": "Souris : Hors ligne",
+        "charging": "En charge",
+        "on_battery": "Sur batterie",
+        "battery_label": "Batterie",
+        "autonomy": "Autonomie",
+        "record": "Relevé",
+        "calculating": "Calcul en cours...",
+        "in_progress": "En cours...",
+        "insufficient_data": "Données insuffisantes",
+        "unavailable": "Estimation indisponible",
+        "menu_style": "Style d'affichage",
+        "style_circle": "Cercle épuré",
+        "style_solid": "Cercle plein",
+        "style_h_bat": "Batterie horizontale",
+        "style_v_bat": "Batterie verticale",
+        "menu_lang": "Langue / Language",
+        "lang_auto": "Automatique (Système)",
+        "lang_fr": "Français",
+        "lang_en": "English",
+        "menu_colors": "Limites de couleur",
+        "orange_threshold": "Seuil Orange (Actuel: <{}%)",
+        "set_orange": "Passer seuil orange à {}%",
+        "red_threshold": "Seuil Rouge (Actuel: <{}%)",
+        "set_red": "Passer seuil rouge à {}%",
+        "menu_interval": "Fréquence de rafraîchissement",
+        "sec": "secondes",
+        "min": "minute",
+        "mins": "minutes",
+        "startup": "Lancer au démarrage",
+        "refresh": "Rafraîchir",
+        "quit": "Quitter",
+        "low_battery_title": "Keychron M3 JJ",
+        "low_battery_msg": "Batterie faible : {}% restant.\nPensez à rebrancher votre souris !",
+        "tooltip_offline": "Keychron M3 : Hors ligne\nDernier relevé : {}"
+    },
+    "en": {
+        "offline": "Mouse: Offline",
+        "charging": "Charging",
+        "on_battery": "On battery",
+        "battery_label": "Battery",
+        "autonomy": "Battery life",
+        "record": "Last update",
+        "calculating": "Calculating...",
+        "in_progress": "In progress...",
+        "insufficient_data": "Insufficient data",
+        "unavailable": "Estimate unavailable",
+        "menu_style": "Display style",
+        "style_circle": "Clean circle",
+        "style_solid": "Solid circle",
+        "style_h_bat": "Horizontal battery",
+        "style_v_bat": "Vertical battery",
+        "menu_lang": "Language / Langue",
+        "lang_auto": "Automatic (System)",
+        "lang_fr": "Français",
+        "lang_en": "English",
+        "menu_colors": "Color thresholds",
+        "orange_threshold": "Orange threshold (Current: <{}%)",
+        "set_orange": "Set orange threshold to {}%",
+        "red_threshold": "Red threshold (Current: <{}%)",
+        "set_red": "Set red threshold to {}%",
+        "menu_interval": "Polling interval",
+        "sec": "seconds",
+        "min": "minute",
+        "mins": "minutes",
+        "startup": "Launch at startup",
+        "refresh": "Refresh",
+        "quit": "Quit",
+        "low_battery_title": "Keychron M3 JJ",
+        "low_battery_msg": "Low battery: {}% remaining.\nConsider plugging in your mouse!",
+        "tooltip_offline": "Keychron M3: Offline\nLast update: {}"
+    }
 }
 
 FONT_CACHE = {}
@@ -99,21 +186,21 @@ def create_battery_icon(level, is_charging=False, is_connected=True, config=None
         draw.text((x, y), text, fill=(0, 230, 118), font=font)
         return image
 
-    if style == "Cercle épuré":
+    if style in ["Cercle épuré", "Clean circle"]:
         draw.ellipse([6, 6, 58, 58], outline=(40, 40, 40), width=8)
         if is_connected and level > 0:
             angle = int(360.0 * (max(0, min(level, 100)) / 100.0))
             if angle > 0:
                 draw.arc([6, 6, 58, 58], start=-90, end=-90 + angle, fill=main_color, width=8)
 
-    elif style == "Cercle plein":
+    elif style in ["Cercle plein", "Solid circle"]:
         draw.ellipse([8, 8, 56, 56], fill=(40, 40, 40))
         if is_connected and level > 0:
             fill_h = int(48 * (max(0, min(level, 100)) / 100.0))
             if fill_h > 0:
                 draw.pieslice([8, 8, 56, 56], start=0, end=360, fill=main_color)
 
-    elif style == "Batterie horizontale":
+    elif style in ["Batterie horizontale", "Horizontal battery"]:
         draw.rounded_rectangle([4, 16, 52, 48], radius=6, outline=(180, 180, 180), width=4)
         draw.rounded_rectangle([52, 26, 58, 38], radius=2, fill=(180, 180, 180))
         if is_connected and level > 0:
@@ -121,7 +208,7 @@ def create_battery_icon(level, is_charging=False, is_connected=True, config=None
             if fill_w > 0:
                 draw.rounded_rectangle([8, 20, 8 + fill_w, 44], radius=4, fill=main_color)
 
-    elif style == "Batterie verticale":
+    elif style in ["Batterie verticale", "Vertical battery"]:
         draw.rounded_rectangle([18, 4, 46, 54], radius=6, outline=(180, 180, 180), width=4)
         draw.rounded_rectangle([26, 1, 38, 4], radius=2, fill=(180, 180, 180))
         if is_connected and level > 0:
@@ -139,8 +226,8 @@ class KeychronBatteryMonitorJJ:
         self.is_connected = False
         self.running = True
         self.alert_sent = False
-        self.last_update = "En cours..."
-        self.time_remaining_str = "Calcul en cours..."
+        self.last_update = self.t("in_progress")
+        self.time_remaining_str = self.t("calculating")
         
         self.startup_folder = os.path.join(os.getenv('APPDATA'), r'Microsoft\Windows\Start Menu\Programs\Startup')
         self.shortcut_path = os.path.join(self.startup_folder, 'KeychronBatteryMonitorJJ.lnk')
@@ -157,45 +244,64 @@ class KeychronBatteryMonitorJJ:
             initial_title = self.get_tooltip_text()
         else:
             initial_icon = create_battery_icon(0, is_connected=False, config=self.config)
-            initial_title = "Keychron M3 : Hors ligne"
+            initial_title = self.t("tooltip_offline").format("---")
 
-        self.icon = pystray.Icon(
-            "Keychron M3 JJ",
-            icon=initial_icon,
-            title=initial_title,
-            menu=pystray.Menu(
-                pystray.MenuItem(lambda item: f"Batterie : {self.battery_level}%" if self.is_connected else "Souris : Hors ligne", None, enabled=False),
-                pystray.MenuItem(lambda item: f"Autonomie : {self.time_remaining_str}", None, enabled=False),
-                pystray.MenuItem(lambda item: f"Relevé : {self.last_update}", None, enabled=False),
+        self.rebuild_menu()
+
+    def get_current_lang(self):
+        lang_pref = self.config.get("language", "auto")
+        if lang_pref in ["fr", "en"]:
+            return lang_pref
+        return get_system_language()
+
+    def t(self, key):
+        lang = self.get_current_lang()
+        return translations[lang].get(key, key)
+
+    def rebuild_menu(self):
+        menu = pystray.Menu(
+            pystray.MenuItem(lambda item: f"{self.t('battery_label')} : {self.battery_level}%" if self.is_connected else self.t("offline"), None, enabled=False),
+            pystray.MenuItem(lambda item: f"{self.t('autonomy')} : {self.time_remaining_str}", None, enabled=False),
+            pystray.MenuItem(lambda item: f"{self.t('record')} : {self.last_update}", None, enabled=False),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem(self.t("menu_style"), pystray.Menu(
+                pystray.MenuItem(self.t("style_circle"), self.set_style("Cercle épuré"), checked=lambda item: self.config["style"] in ["Cercle épuré", "Clean circle"]),
+                pystray.MenuItem(self.t("style_solid"), self.set_style("Cercle plein"), checked=lambda item: self.config["style"] in ["Cercle plein", "Solid circle"]),
+                pystray.MenuItem(self.t("style_h_bat"), self.set_style("Batterie horizontale"), checked=lambda item: self.config["style"] in ["Batterie horizontale", "Horizontal battery"]),
+                pystray.MenuItem(self.t("style_v_bat"), self.set_style("Batterie verticale"), checked=lambda item: self.config["style"] in ["Batterie verticale", "Vertical battery"]),
+            )),
+            pystray.MenuItem(self.t("menu_lang"), pystray.Menu(
+                pystray.MenuItem(self.t("lang_auto"), self.set_language("auto"), checked=lambda item: self.config.get("language", "auto") == "auto"),
+                pystray.MenuItem(self.t("lang_fr"), self.set_language("fr"), checked=lambda item: self.config.get("language") == "fr"),
+                pystray.MenuItem(self.t("lang_en"), self.set_language("en"), checked=lambda item: self.config.get("language") == "en"),
+            )),
+            pystray.MenuItem(self.t("menu_colors"), pystray.Menu(
+                pystray.MenuItem(lambda item: self.t("orange_threshold").format(self.config['color_high']), None, enabled=False),
+                pystray.MenuItem(self.t("set_orange").format(60), self.set_color_limits(60, 20)),
+                pystray.MenuItem(self.t("set_orange").format(50), self.set_color_limits(50, 20)),
+                pystray.MenuItem(self.t("set_orange").format(40), self.set_color_limits(40, 15)),
                 pystray.Menu.SEPARATOR,
-                pystray.MenuItem("Style d'affichage", pystray.Menu(
-                    pystray.MenuItem("Cercle épuré", self.set_style("Cercle épuré"), checked=lambda item: self.config["style"] == "Cercle épuré"),
-                    pystray.MenuItem("Cercle plein", self.set_style("Cercle plein"), checked=lambda item: self.config["style"] == "Cercle plein"),
-                    pystray.MenuItem("Batterie horizontale", self.set_style("Batterie horizontale"), checked=lambda item: self.config["style"] == "Batterie horizontale"),
-                    pystray.MenuItem("Batterie verticale", self.set_style("Batterie verticale"), checked=lambda item: self.config["style"] == "Batterie verticale"),
-                )),
-                pystray.MenuItem("Limites de couleur", pystray.Menu(
-                    pystray.MenuItem(lambda item: f"Seuil Orange (Actuel: <{self.config['color_high']}%)", None, enabled=False),
-                    pystray.MenuItem("Passer seuil orange à 60%", self.set_color_limits(60, 20)),
-                    pystray.MenuItem("Passer seuil orange à 50%", self.set_color_limits(50, 20)),
-                    pystray.MenuItem("Passer seuil orange à 40%", self.set_color_limits(40, 15)),
-                    pystray.Menu.SEPARATOR,
-                    pystray.MenuItem(lambda item: f"Seuil Rouge (Actuel: <{self.config['color_low']}%)", None, enabled=False),
-                    pystray.MenuItem("Passer seuil rouge à 25%", self.set_color_limits(self.config["color_high"], 25)),
-                    pystray.MenuItem("Passer seuil rouge à 20%", self.set_color_limits(self.config["color_high"], 20)),
-                    pystray.MenuItem("Passer seuil rouge à 10%", self.set_color_limits(self.config["color_high"], 10)),
-                )),
-                pystray.MenuItem("Fréquence de rafraîchissement", pystray.Menu(
-                    pystray.MenuItem("15 secondes", self.set_interval(15), checked=lambda item: self.config["poll_interval"] == 15),
-                    pystray.MenuItem("30 secondes", self.set_interval(30), checked=lambda item: self.config["poll_interval"] == 30),
-                    pystray.MenuItem("1 minute", self.set_interval(60), checked=lambda item: self.config["poll_interval"] == 60),
-                    pystray.MenuItem("5 minutes", self.set_interval(300), checked=lambda item: self.config["poll_interval"] == 300),
-                )),
-                pystray.MenuItem("Lancer au démarrage", self.toggle_startup, checked=lambda item: os.path.exists(self.shortcut_path)),
-                pystray.MenuItem("Rafraîchir", self.update_status),
-                pystray.MenuItem("Quitter", self.quit)
-            )
+                pystray.MenuItem(lambda item: self.t("red_threshold").format(self.config['color_low']), None, enabled=False),
+                pystray.MenuItem(self.t("set_red").format(25), self.set_color_limits(self.config["color_high"], 25)),
+                pystray.MenuItem(self.t("set_red").format(20), self.set_color_limits(self.config["color_high"], 20)),
+                pystray.MenuItem(self.t("set_red").format(10), self.set_color_limits(self.config["color_high"], 10)),
+            )),
+            pystray.MenuItem(self.t("menu_interval"), pystray.Menu(
+                pystray.MenuItem(f"15 {self.t('sec')}", self.set_interval(15), checked=lambda item: self.config["poll_interval"] == 15),
+                pystray.MenuItem(f"30 {self.t('sec')}", self.set_interval(30), checked=lambda item: self.config["poll_interval"] == 30),
+                pystray.MenuItem(f"1 {self.t('min')}", self.set_interval(60), checked=lambda item: self.config["poll_interval"] == 60),
+                pystray.MenuItem(f"5 {self.t('mins')}", self.set_interval(300), checked=lambda item: self.config["poll_interval"] == 300),
+            )),
+            pystray.MenuItem(self.t("startup"), self.toggle_startup, checked=lambda item: os.path.exists(self.shortcut_path)),
+            pystray.MenuItem(self.t("refresh"), self.update_status),
+            pystray.MenuItem(self.t("quit"), self.quit)
         )
+        if hasattr(self, 'icon') and self.icon:
+            self.icon.menu = menu
+        else:
+            initial_icon = create_battery_icon(self.battery_level, self.is_charging, self.is_connected, config=self.config)
+            initial_title = self.get_tooltip_text() if self.is_connected else self.t("tooltip_offline").format("---")
+            self.icon = pystray.Icon("Keychron M3 JJ", icon=initial_icon, title=initial_title, menu=menu)
 
     def load_config(self):
         if os.path.exists(CONFIG_PATH):
@@ -225,7 +331,6 @@ class KeychronBatteryMonitorJJ:
         now = time.time()
         history.append({"time": now, "level": level})
         
-        # Filtre temporel (24h) et limite stricte de quantité (100 points max)
         cutoff = now - 86400
         history = [h for h in history if h["time"] > cutoff]
         
@@ -241,14 +346,14 @@ class KeychronBatteryMonitorJJ:
 
     def update_time_remaining(self):
         if not os.path.exists(HISTORY_PATH):
-            self.time_remaining_str = "Données insuffisantes"
+            self.time_remaining_str = self.t("insufficient_data")
             return
 
         try:
             with open(HISTORY_PATH, "r") as f:
                 history = json.load(f)
             if len(history) < 2:
-                self.time_remaining_str = "Calcul en cours..."
+                self.time_remaining_str = self.t("calculating")
                 return
 
             oldest = history[0]
@@ -263,16 +368,25 @@ class KeychronBatteryMonitorJJ:
                     td = timedelta(hours=hours_left)
                     h = int(td.total_seconds() // 3600)
                     m = int((td.total_seconds() % 3600) // 60)
-                    self.time_remaining_str = f"~{h}h {m}min restantes"
+                    lang = self.get_current_lang()
+                    self.time_remaining_str = f"~{h}h {m}min" if lang == "en" else f"~{h}h {m}min restantes"
                     return
         except Exception:
             pass
-        self.time_remaining_str = "Estimation indisponible"
+        self.time_remaining_str = self.t("unavailable")
 
     def set_style(self, style_name):
         def inner(icon, item):
             self.config["style"] = style_name
             self.save_config()
+            self.update_status()
+        return inner
+
+    def set_language(self, lang_code):
+        def inner(icon, item):
+            self.config["language"] = lang_code
+            self.save_config()
+            self.rebuild_menu()
             self.update_status()
         return inner
 
@@ -292,8 +406,8 @@ class KeychronBatteryMonitorJJ:
         return inner
 
     def get_tooltip_text(self):
-        status_text = "En charge" if self.is_charging else "Sur batterie"
-        return f"Keychron M3 : {self.battery_level}% ({status_text})\nAutonomie : {self.time_remaining_str}\nDernier relevé : {self.last_update}"
+        status_text = self.t("charging") if self.is_charging else self.t("on_battery")
+        return f"Keychron M3 : {self.battery_level}% ({status_text})\n{self.t('autonomy')} : {self.time_remaining_str}\n{self.t('record')} : {self.last_update}"
 
     def read_battery(self):
         for path in TARGET_PATHS:
@@ -354,15 +468,15 @@ class KeychronBatteryMonitorJJ:
             if level <= 15 and not charging:
                 if not self.alert_sent:
                     self.icon.notify(
-                        f"Batterie faible : {level}% restant.\nPensez à rebrancher votre souris !",
-                        "Keychron M3 JJ"
+                        self.t("low_battery_msg").format(level),
+                        self.t("low_battery_title")
                     )
                     self.alert_sent = True
             else:
                 self.alert_sent = False
         else:
             self.is_connected = False
-            self.icon.title = f"Keychron M3 : Hors ligne\nDernier relevé : {self.last_update}"
+            self.icon.title = self.t("tooltip_offline").format(self.last_update)
             self.icon.icon = create_battery_icon(0, is_connected=False, config=self.config)
 
     def toggle_startup(self, icon, item):
