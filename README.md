@@ -15,6 +15,8 @@
 * **Alertes de batterie faible** : Notification native Windows lorsque le niveau descend sous les 15 %.
 * **Personnalisation complète** : Modification des seuils de couleurs, de la fréquence d'actualisation et gestion du lancement au démarrage directement depuis le menu contextuel.
 
+![Capture d'écran 1](keychron%20battery%201.png) ![Capture d'écran 2](keychron%20battery%202.png)
+
 ### 📦 Installation (Utilisateur Lambda)
 1. Téléchargez la dernière version de l'installeur (**`KeychronBatterySetup.exe`**) depuis l'onglet *Releases* du dépôt.
 2. Double-cliquez sur le fichier pour lancer l'assistant d'installation.
@@ -38,6 +40,8 @@ Lors de l'installation de l'exécutable, **Windows Defender** ou certains antivi
 * **Battery Life Estimation**: Smart time-remaining calculations based on historical usage.
 * **Low Battery Alerts**: Native Windows notifications when the battery drops below 15%.
 * **Full Customization**: Easily change color thresholds, polling intervals, and startup behavior straight from the tray menu.
+
+![Capture d'écran 1](keychron%20battery%201.png) ![Capture d'écran 2](keychron%20battery%202.png)
 
 ### 📦 Installation
 1. Download the latest installer (**`KeychronBatterySetup.exe`**) from the *Releases* section.
