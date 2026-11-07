@@ -11,8 +11,13 @@ from PIL import Image, ImageDraw, ImageFont
 import pystray
 
 INSTALL_DIR = os.path.dirname(os.path.abspath(sys.argv[0]))
-CONFIG_PATH = os.path.join(INSTALL_DIR, "config.json")
-HISTORY_PATH = os.path.join(INSTALL_DIR, "history.json")
+
+# Dossier de données utilisateur dans AppData (évite les blocages d'écriture dans Program Files)
+DATA_DIR = os.path.join(os.getenv('APPDATA'), 'KeychronBatteryMonitorJJ')
+os.makedirs(DATA_DIR, exist_ok=True)
+
+CONFIG_PATH = os.path.join(DATA_DIR, "config.json")
+HISTORY_PATH = os.path.join(DATA_DIR, "history.json")
 
 VENDOR_ID = 0x3434
 PRODUCT_ID = 0xD030
@@ -328,6 +333,10 @@ class KeychronBatteryMonitorJJ:
             except Exception:
                 pass
         
+        # N'enregistre que si le niveau a changé par rapport au dernier point
+        if history and history[-1]["level"] == level:
+            return
+
         now = time.time()
         history.append({"time": now, "level": level})
         
