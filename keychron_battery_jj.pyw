@@ -243,7 +243,7 @@ class KeychronBatteryMonitorJJ:
             self.is_charging = charging
             self.is_connected = True
             self.last_update = datetime.now().strftime("%H:%M:%S")
-            self.record_history(level)
+            self.record_history(level, charging)
             self.update_time_remaining()
             initial_icon = create_battery_icon(level, charging, is_connected=True, config=self.config)
             initial_title = self.get_tooltip_text()
@@ -324,7 +324,7 @@ class KeychronBatteryMonitorJJ:
         except Exception:
             pass
 
-    def record_history(self, level):
+    def record_history(self, level, is_charging):
         history = []
         if os.path.exists(HISTORY_PATH):
             try:
@@ -333,7 +333,11 @@ class KeychronBatteryMonitorJJ:
             except Exception:
                 pass
         
-        # N'enregistre que si le niveau a changé par rapport au dernier point
+        # Si la souris est en charge ou si le niveau a augmenté (recharge partielle), on remet l'historique à zéro
+        if is_charging or (history and level > history[-1]["level"]):
+            history = []
+        
+        # N'enregistre que si le niveau est différent du dernier point enregistré
         if history and history[-1]["level"] == level:
             return
 
@@ -354,6 +358,10 @@ class KeychronBatteryMonitorJJ:
             pass
 
     def update_time_remaining(self):
+        if self.is_charging:
+            self.time_remaining_str = self.t("charging")
+            return
+
         if not os.path.exists(HISTORY_PATH):
             self.time_remaining_str = self.t("insufficient_data")
             return
@@ -468,7 +476,7 @@ class KeychronBatteryMonitorJJ:
             self.battery_level = level
             self.is_charging = charging
             self.is_connected = True
-            self.record_history(level)
+            self.record_history(level, charging)
             self.update_time_remaining()
 
             self.icon.title = self.get_tooltip_text()
