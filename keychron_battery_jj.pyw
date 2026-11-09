@@ -1,18 +1,34 @@
-import os
+import subprocess
 import sys
+
+# --- VÉRIFICATION ET INSTALLATION AUTOMATIQUE DES DÉPENDANCES ---
+required_packages = {
+    "hidapi": "hid",
+    "Pillow": "PIL",
+    "pystray": "pystray"
+}
+
+for package_name, import_name in required_packages.items():
+    try:
+        __import__(import_name)
+    except ImportError:
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", package_name], creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0)
+        except Exception:
+            sys.exit(1)
+# -------------------------------------------------------------
+
+import os
 import json
 import time
 import threading
-import subprocess
-import ctypes
-from ctypes import wintypes
 from datetime import datetime, timedelta
 from PIL import Image, ImageDraw, ImageFont
 import pystray
+import hid
 
 INSTALL_DIR = os.path.dirname(os.path.abspath(sys.argv[0]))
 
-# Dossier de données utilisateur dans AppData (évite les blocages d'écriture dans Program Files)
 DATA_DIR = os.path.join(os.getenv('APPDATA'), 'KeychronBatteryMonitorJJ')
 os.makedirs(DATA_DIR, exist_ok=True)
 
@@ -20,50 +36,18 @@ CONFIG_PATH = os.path.join(DATA_DIR, "config.json")
 HISTORY_PATH = os.path.join(DATA_DIR, "history.json")
 
 VENDOR_ID = 0x3434
-PRODUCT_ID = 0xD030
-
-kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
-hid_dll = ctypes.WinDLL('hid', use_last_error=True)
-
-GENERIC_READ = 0x80000000
-GENERIC_WRITE = 0x40000000
-FILE_SHARE_READ = 0x00000001
-FILE_SHARE_WRITE = 0x00000002
-OPEN_EXISTING = 3
-INVALID_HANDLE_VALUE = -1
-
-def get_hid_function(name):
-    try:
-        fn = getattr(hid_dll, name)
-        fn.argtypes = [wintypes.HANDLE, ctypes.c_void_p, wintypes.ULONG]
-        fn.restype = wintypes.BOOL
-        return fn
-    except AttributeError:
-        return None
-
-HidD_SetFeature = get_hid_function('HidD_SetFeature') or get_hid_function('HidD_SetFeatureReport')
-HidD_GetFeature = get_hid_function('HidD_GetFeature') or get_hid_function('HidD_GetFeatureReport')
-
-TARGET_PATHS = [
-    r"\\?\hid#vid_3434&pid_d030&mi_01&col01#8&2c14466c&0&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}",
-    r"\\?\hid#vid_3434&pid_d030&mi_01&col02#8&2c14466c&0&0001#{4d1e55b2-f16f-11cf-88cb-001111000030}"
-]
-
-REPORT_ID = 0x51
-STATUS_CMD = 0x06
-LEVEL_INDEX = 11
 
 DEFAULT_CONFIG = {
     "poll_interval": 30,
     "style": "Cercle épuré",
     "color_high": 50,
     "color_low": 20,
-    "language": "auto"  # "auto", "fr", ou "en"
+    "language": "auto"
 }
 
-# --- SYSTÈME DE TRADUCTION ---
 def get_system_language():
     try:
+        import ctypes
         windll = ctypes.windll.kernel32
         lang_id = windll.GetUserDefaultUILanguage()
         if lang_id & 0x3FF == 0x09:
@@ -75,7 +59,7 @@ def get_system_language():
 translations = {
     "fr": {
         "offline": "Souris : Hors ligne",
-        "charging": "En charge",
+        "charging": "En charge (USB)",
         "on_battery": "Sur batterie",
         "battery_label": "Batterie",
         "autonomy": "Autonomie",
@@ -111,7 +95,7 @@ translations = {
     },
     "en": {
         "offline": "Mouse: Offline",
-        "charging": "Charging",
+        "charging": "Charging (USB)",
         "on_battery": "On battery",
         "battery_label": "Battery",
         "autonomy": "Battery life",
@@ -159,11 +143,11 @@ def get_cached_font(size):
 
 def get_dynamic_color(level, config):
     if level > config["color_high"]:
-        return (46, 125, 50)  # Vert
+        return (46, 125, 50)
     elif level > config["color_low"]:
-        return (255, 160, 0)  # Orange
+        return (255, 160, 0)
     else:
-        return (229, 57, 53)  # Rouge
+        return (229, 57, 53)
 
 def create_battery_icon(level, is_charging=False, is_connected=True, config=None):
     if config is None:
@@ -183,12 +167,16 @@ def create_battery_icon(level, is_charging=False, is_connected=True, config=None
     style = config.get("style", "Cercle épuré")
 
     if is_charging:
-        font = get_cached_font(42)
-        text = "+"
-        bbox = draw.textbbox((0, 0), text, font=font)
-        x = (size - (bbox[2] - bbox[0])) // 2
-        y = (size - (bbox[3] - bbox[1])) // 2 - 4
-        draw.text((x, y), text, fill=(0, 230, 118), font=font)
+        bolt_points = [
+            (36, 10),
+            (22, 34),
+            (32, 34),
+            (26, 54),
+            (44, 28),
+            (34, 28),
+            (36, 10)
+        ]
+        draw.polygon(bolt_points, fill=(0, 230, 118))
         return image
 
     if style in ["Cercle épuré", "Clean circle"]:
@@ -333,11 +321,9 @@ class KeychronBatteryMonitorJJ:
             except Exception:
                 pass
         
-        # Si la souris est en charge ou si le niveau a augmenté (recharge partielle), on remet l'historique à zéro
         if is_charging or (history and level > history[-1]["level"]):
             history = []
         
-        # N'enregistre que si le niveau est différent du dernier point enregistré
         if history and history[-1]["level"] == level:
             return
 
@@ -427,49 +413,62 @@ class KeychronBatteryMonitorJJ:
         return f"Keychron M3 : {self.battery_level}% ({status_text})\n{self.t('autonomy')} : {self.time_remaining_str}\n{self.t('record')} : {self.last_update}"
 
     def read_battery(self):
-        for path in TARGET_PATHS:
-            handle = INVALID_HANDLE_VALUE
-            try:
-                handle = kernel32.CreateFileW(
-                    path, GENERIC_READ | GENERIC_WRITE,
-                    FILE_SHARE_READ | FILE_SHARE_WRITE, None, OPEN_EXISTING, 0, None
-                )
-                if handle == INVALID_HANDLE_VALUE or handle == 0:
+        try:
+            devices = hid.enumerate(VENDOR_ID)
+            if not devices:
+                return None, False, False
+
+            sorted_devices = sorted(devices, key=lambda x: 0 if x['product_id'] == 0xD033 else 1)
+
+            for d in sorted_devices:
+                pid = d['product_id']
+                if pid not in [0xD033, 0xD030]:
                     continue
 
-                req_buffer = (ctypes.c_ubyte * 65)()
-                req_buffer[0] = REPORT_ID
-                req_buffer[1] = STATUS_CMD
+                path = d['path']
+                try:
+                    h = hid.device()
+                    h.open_path(path)
+                    
+                    report_data = [0x00] * 65
+                    report_data[0] = 0x51
+                    report_data[1] = 0x06
+                    h.send_feature_report(report_data)
 
-                if HidD_SetFeature:
-                    HidD_SetFeature(handle, ctypes.byref(req_buffer), 65)
+                    time.sleep(0.03)
+                    resp = h.get_feature_report(0x51, 65)
+                    h.close()
 
-                time.sleep(0.04)
-                resp_buffer = (ctypes.c_ubyte * 65)()
-                resp_buffer[0] = REPORT_ID
-
-                res_get = False
-                if HidD_GetFeature:
-                    res_get = HidD_GetFeature(handle, ctypes.byref(resp_buffer), 65)
-
-                if res_get:
-                    data = list(resp_buffer)
-                    if len(data) > LEVEL_INDEX:
-                        val = data[LEVEL_INDEX]
-                        is_connected = bool(data[9] == 1) if len(data) > 9 else True
-                        is_charging = bool(data[2] == 0x02) if len(data) > 2 else False
-
-                        if 1 <= val <= 100 and is_connected:
+                    if resp and len(resp) > 11:
+                        val = resp[11]
+                        if 1 <= val <= 100:
+                            is_charging = (pid == 0xD033)
                             return val, is_charging, True
-            except Exception:
-                pass
-            finally:
-                if handle != INVALID_HANDLE_VALUE and handle != 0:
-                    kernel32.CloseHandle(handle)
+                except Exception:
+                    try:
+                        h.close()
+                    except Exception:
+                        pass
+                    continue
+
+        except Exception:
+            pass
+
         return None, False, False
 
     def update_status(self):
         level, charging, connected = self.read_battery()
+        
+        if connected and level is not None:
+            if os.path.exists(HISTORY_PATH):
+                try:
+                    with open(HISTORY_PATH, "r") as f:
+                        history = json.load(f)
+                    if history and level > history[-1]["level"]:
+                        charging = True
+                except Exception:
+                    pass
+
         self.last_update = datetime.now().strftime("%H:%M:%S")
 
         if connected and level is not None:
