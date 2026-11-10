@@ -1,3 +1,9 @@
+# ==============================================================================
+# Nom du projet : Keychron Battery Monitor
+# Auteur        : Jessy JONKISZ
+# X (Twitter)   : https://x.com/JNKZJessy
+# ==============================================================================
+
 import subprocess
 import sys
 
@@ -5,7 +11,8 @@ import sys
 required_packages = {
     "hidapi": "hid",
     "Pillow": "PIL",
-    "pystray": "pystray"
+    "pystray": "pystray",
+    "matplotlib": "matplotlib"
 }
 
 for package_name, import_name in required_packages.items():
@@ -23,9 +30,15 @@ import json
 import time
 import threading
 from datetime import datetime, timedelta
+import tkinter as tk
 from PIL import Image, ImageDraw, ImageFont
 import pystray
 import hid
+
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 INSTALL_DIR = os.path.dirname(os.path.abspath(sys.argv[0]))
 
@@ -34,6 +47,7 @@ os.makedirs(DATA_DIR, exist_ok=True)
 
 CONFIG_PATH = os.path.join(DATA_DIR, "config.json")
 HISTORY_PATH = os.path.join(DATA_DIR, "history.json")
+STATS_PATH = os.path.join(DATA_DIR, "stats.json")
 
 VENDOR_ID = 0x3434
 
@@ -63,11 +77,14 @@ translations = {
         "on_battery": "Sur batterie",
         "battery_label": "Batterie",
         "autonomy": "Autonomie",
+        "last_full_charge": "Dernière charge 100%",
+        "never": "Jamais",
         "record": "Relevé",
         "calculating": "Calcul en cours...",
         "in_progress": "En cours...",
         "insufficient_data": "Données insuffisantes",
         "unavailable": "Estimation indisponible",
+        "show_stats": "📊 Afficher les statistiques",
         "menu_style": "Style d'affichage",
         "style_circle": "Cercle épuré",
         "style_solid": "Cercle plein",
@@ -89,8 +106,10 @@ translations = {
         "startup": "Lancer au démarrage",
         "refresh": "Rafraîchir",
         "quit": "Quitter",
-        "low_battery_title": "Keychron M3 JJ",
+        "low_battery_title": "Keychron M3",
         "low_battery_msg": "Batterie faible : {}% restant.\nPensez à rebrancher votre souris !",
+        "full_battery_title": "Keychron M3",
+        "full_battery_msg": "Souris chargée à 100% !\nVous pouvez la débrancher pour préserver la batterie.",
         "tooltip_offline": "Keychron M3 : Hors ligne\nDernier relevé : {}"
     },
     "en": {
@@ -99,11 +118,14 @@ translations = {
         "on_battery": "On battery",
         "battery_label": "Battery",
         "autonomy": "Battery life",
+        "last_full_charge": "Last 100% charge",
+        "never": "Never",
         "record": "Last update",
         "calculating": "Calculating...",
         "in_progress": "In progress...",
         "insufficient_data": "Insufficient data",
         "unavailable": "Estimate unavailable",
+        "show_stats": "📊 Show statistics",
         "menu_style": "Display style",
         "style_circle": "Clean circle",
         "style_solid": "Solid circle",
@@ -121,25 +143,17 @@ translations = {
         "menu_interval": "Polling interval",
         "sec": "seconds",
         "min": "minute",
-        "mins": "minutes",
+        "minutes": "minutes",
         "startup": "Launch at startup",
         "refresh": "Refresh",
         "quit": "Quit",
-        "low_battery_title": "Keychron M3 JJ",
+        "low_battery_title": "Keychron M3",
         "low_battery_msg": "Low battery: {}% remaining.\nConsider plugging in your mouse!",
+        "full_battery_title": "Keychron M3",
+        "full_battery_msg": "Mouse charged to 100%!\nYou can unplug it to preserve battery health.",
         "tooltip_offline": "Keychron M3: Offline\nLast update: {}"
     }
 }
-
-FONT_CACHE = {}
-
-def get_cached_font(size):
-    if size not in FONT_CACHE:
-        try:
-            FONT_CACHE[size] = ImageFont.truetype("arialbd.ttf", size)
-        except IOError:
-            FONT_CACHE[size] = ImageFont.load_default()
-    return FONT_CACHE[size]
 
 def get_dynamic_color(level, config):
     if level > config["color_high"]:
@@ -168,30 +182,30 @@ def create_battery_icon(level, is_charging=False, is_connected=True, config=None
 
     if is_charging:
         bolt_points = [
-            (36, 10),
-            (22, 34),
-            (32, 34),
-            (26, 54),
-            (44, 28),
-            (34, 28),
-            (36, 10)
+            (36, 8),
+            (21, 33),
+            (31, 33),
+            (25, 56),
+            (45, 27),
+            (34, 27),
+            (36, 8)
         ]
         draw.polygon(bolt_points, fill=(0, 230, 118))
         return image
 
     if style in ["Cercle épuré", "Clean circle"]:
-        draw.ellipse([6, 6, 58, 58], outline=(40, 40, 40), width=8)
+        draw.ellipse([4, 4, 60, 60], outline=(50, 50, 50), width=7)
         if is_connected and level > 0:
             angle = int(360.0 * (max(0, min(level, 100)) / 100.0))
             if angle > 0:
-                draw.arc([6, 6, 58, 58], start=-90, end=-90 + angle, fill=main_color, width=8)
+                draw.arc([4, 4, 60, 60], start=-90, end=-90 + angle, fill=main_color, width=7)
 
     elif style in ["Cercle plein", "Solid circle"]:
-        draw.ellipse([8, 8, 56, 56], fill=(40, 40, 40))
+        draw.ellipse([6, 6, 58, 58], fill=(40, 40, 40))
         if is_connected and level > 0:
-            fill_h = int(48 * (max(0, min(level, 100)) / 100.0))
+            fill_h = int(52 * (max(0, min(level, 100)) / 100.0))
             if fill_h > 0:
-                draw.pieslice([8, 8, 56, 56], start=0, end=360, fill=main_color)
+                draw.pieslice([6, 6, 58, 58], start=0, end=360, fill=main_color)
 
     elif style in ["Batterie horizontale", "Horizontal battery"]:
         draw.rounded_rectangle([4, 16, 52, 48], radius=6, outline=(180, 180, 180), width=4)
@@ -211,7 +225,7 @@ def create_battery_icon(level, is_charging=False, is_connected=True, config=None
 
     return image
 
-class KeychronBatteryMonitorJJ:
+class KeychronBatteryMonitor:
     def __init__(self):
         self.config = self.load_config()
         self.battery_level = 0
@@ -219,11 +233,13 @@ class KeychronBatteryMonitorJJ:
         self.is_connected = False
         self.running = True
         self.alert_sent = False
+        self.full_charge_notified = False
         self.last_update = self.t("in_progress")
         self.time_remaining_str = self.t("calculating")
+        self.last_full_charge_time = self.load_last_full_charge()
         
         self.startup_folder = os.path.join(os.getenv('APPDATA'), r'Microsoft\Windows\Start Menu\Programs\Startup')
-        self.shortcut_path = os.path.join(self.startup_folder, 'KeychronBatteryMonitorJJ.lnk')
+        self.shortcut_path = os.path.join(self.startup_folder, 'KeychronBatteryMonitor.lnk')
 
         level, charging, connected = self.read_battery()
         if connected and level is not None:
@@ -231,6 +247,7 @@ class KeychronBatteryMonitorJJ:
             self.is_charging = charging
             self.is_connected = True
             self.last_update = datetime.now().strftime("%H:%M:%S")
+            self.check_full_charge(level, charging)
             self.record_history(level, charging)
             self.update_time_remaining()
             initial_icon = create_battery_icon(level, charging, is_connected=True, config=self.config)
@@ -251,10 +268,153 @@ class KeychronBatteryMonitorJJ:
         lang = self.get_current_lang()
         return translations[lang].get(key, key)
 
+    def load_last_full_charge(self):
+        if os.path.exists(STATS_PATH):
+            try:
+                with open(STATS_PATH, "r") as f:
+                    data = json.load(f)
+                    return data.get("last_full_charge", None)
+            except Exception:
+                pass
+        return None
+
+    def save_last_full_charge(self, time_str):
+        self.last_full_charge_time = time_str
+        try:
+            with open(STATS_PATH, "w") as f:
+                json.dump({"last_full_charge": time_str}, f)
+        except Exception:
+            pass
+
+    def check_full_charge(self, level, is_charging):
+        if is_charging and level >= 99:
+            current_time = datetime.now().strftime("%d/%m/%Y à %H:%M")
+            if self.last_full_charge_time != current_time:
+                self.save_last_full_charge(current_time)
+                if not self.full_charge_notified and hasattr(self, 'icon'):
+                    try:
+                        self.icon.notify(
+                            self.t("full_battery_msg"),
+                            self.t("full_battery_title")
+                        )
+                        self.full_charge_notified = True
+                    except Exception:
+                        pass
+        else:
+            self.full_charge_notified = False
+
+    def show_popup_window(self, icon=None, item=None):
+        """Ouvre une fenêtre Tkinter avec stats et graphique (vert continu si consécutif, pointillé orange si saut de %s)"""
+        def run_tk():
+            root = tk.Tk()
+            root.title("Keychron M3 - Stats & Historique")
+            root.geometry("580x520")
+            root.configure(bg="#1e1e1e")
+            root.attributes("-topmost", True)
+            root.resizable(False, False)
+
+            root.update_idletasks()
+            width = root.winfo_width()
+            height = root.winfo_height()
+            x = (root.winfo_screenwidth() // 2) - (width // 2)
+            y = (root.winfo_screenheight() // 2) - (height // 2)
+            root.geometry(f'{width}x{height}+{x}+{y}')
+
+            status_text = self.t("charging") if self.is_charging else self.t("on_battery")
+            if not self.is_connected:
+                status_text = self.t("offline")
+
+            lbl_title = tk.Label(root, text="Keychron M3", fg="#00e676", bg="#1e1e1e", font=("Segoe UI", 12, "bold"))
+            lbl_title.pack(pady=(12, 5))
+
+            info_frame = tk.Frame(root, bg="#1e1e1e")
+            info_frame.pack(fill="x", padx=20, pady=5)
+
+            lbl_bat = tk.Label(info_frame, text=f"{self.t('battery_label')} : {self.battery_level}% ({status_text})", fg="#ffffff", bg="#1e1e1e", font=("Segoe UI", 9, "bold"), anchor="w")
+            lbl_bat.pack(fill="x")
+
+            lbl_auto = tk.Label(info_frame, text=f"{self.t('autonomy')} : {self.time_remaining_str}", fg="#b0b0b0", bg="#1e1e1e", font=("Segoe UI", 9), anchor="w")
+            lbl_auto.pack(fill="x")
+
+            last_charge_display = self.last_full_charge_time if self.last_full_charge_time else self.t("never")
+            lbl_charge = tk.Label(info_frame, text=f"{self.t('last_full_charge')} : {last_charge_display}", fg="#b0b0b0", bg="#1e1e1e", font=("Segoe UI", 9), anchor="w")
+            lbl_charge.pack(fill="x")
+
+            chart_frame = tk.Frame(root, bg="#1e1e1e")
+            chart_frame.pack(fill="both", expand=True, padx=15, pady=5)
+
+            history_data = []
+            if os.path.exists(HISTORY_PATH):
+                try:
+                    with open(HISTORY_PATH, "r") as f:
+                        history_data = json.load(f)
+                except Exception:
+                    pass
+
+            fig, ax = plt.subplots(figsize=(5.5, 2.0), dpi=100)
+            fig.patch.set_facecolor('#1e1e1e')
+            ax.set_facecolor('#121212')
+
+            if history_data:
+                times = [datetime.fromtimestamp(h["time"]) for h in history_data]
+                levels = [h["level"] for h in history_data]
+                x_nums = matplotlib.dates.date2num(times)
+
+                for i in range(1, len(x_nums)):
+                    lvl_prev = levels[i-1]
+                    lvl_curr = levels[i]
+                    seg_x = [x_nums[i-1], x_nums[i]]
+                    seg_y = [lvl_prev, lvl_curr]
+
+                    level_diff = abs(lvl_prev - lvl_curr)
+
+                    if level_diff > 1:
+                        ax.plot(seg_x, seg_y, color="#ff9800", linestyle='--', linewidth=2, alpha=0.85)
+                    else:
+                        ax.plot(seg_x, seg_y, color="#00e676", linewidth=2)
+
+                ax.xaxis_date()
+                ax.xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%H:%M'))
+                
+                xmin = x_nums[0]
+                xmax = max(x_nums[-1], xmin + 1.0)
+                ax.set_xlim(xmin, xmax)
+                ax.xaxis.set_major_locator(matplotlib.dates.HourLocator(interval=2))
+            
+            ax.set_ylim(-5, 105)
+            ax.tick_params(colors='#b0b0b0', labelsize=8)
+            fig.autofmt_xdate(rotation=15, ha='center')
+            ax.grid(True, color='#2a2a2a', linestyle='--', linewidth=0.5)
+            
+            for spine in ax.spines.values():
+                spine.set_edgecolor('#333333')
+
+            fig.tight_layout()
+
+            canvas = FigureCanvasTkAgg(fig, master=chart_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill="both", expand=True)
+
+            # Mention de l'auteur en bas de la fenêtre
+            lbl_author = tk.Label(root, text="Développé par Jessy JONKISZ — https://x.com/JNKZJessy", fg="#777777", bg="#1e1e1e", font=("Segoe UI", 8))
+            lbl_author.pack(pady=(2, 0))
+
+            btn_close = tk.Button(root, text="Fermer", command=root.destroy, bg="#333333", fg="#ffffff", bd=0, relief="flat", font=("Segoe UI", 9))
+            btn_close.pack(pady=8, ipadx=15, ipady=2)
+
+            root.mainloop()
+
+        threading.Thread(target=run_tk, daemon=True).start()
+
     def rebuild_menu(self):
+        last_charge_display = self.last_full_charge_time if self.last_full_charge_time else self.t("never")
+        
         menu = pystray.Menu(
+            pystray.MenuItem(self.t("show_stats"), self.show_popup_window),
+            pystray.Menu.SEPARATOR,
             pystray.MenuItem(lambda item: f"{self.t('battery_label')} : {self.battery_level}%" if self.is_connected else self.t("offline"), None, enabled=False),
             pystray.MenuItem(lambda item: f"{self.t('autonomy')} : {self.time_remaining_str}", None, enabled=False),
+            pystray.MenuItem(lambda item: f"{self.t('last_full_charge')} : {last_charge_display}", None, enabled=False),
             pystray.MenuItem(lambda item: f"{self.t('record')} : {self.last_update}", None, enabled=False),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(self.t("menu_style"), pystray.Menu(
@@ -294,7 +454,7 @@ class KeychronBatteryMonitorJJ:
         else:
             initial_icon = create_battery_icon(self.battery_level, self.is_charging, self.is_connected, config=self.config)
             initial_title = self.get_tooltip_text() if self.is_connected else self.t("tooltip_offline").format("---")
-            self.icon = pystray.Icon("Keychron M3 JJ", icon=initial_icon, title=initial_title, menu=menu)
+            self.icon = pystray.Icon("Keychron M3", icon=initial_icon, title=initial_title, menu=menu)
 
     def load_config(self):
         if os.path.exists(CONFIG_PATH):
@@ -410,7 +570,11 @@ class KeychronBatteryMonitorJJ:
 
     def get_tooltip_text(self):
         status_text = self.t("charging") if self.is_charging else self.t("on_battery")
-        return f"Keychron M3 : {self.battery_level}% ({status_text})\n{self.t('autonomy')} : {self.time_remaining_str}\n{self.t('record')} : {self.last_update}"
+        last_charge_display = self.last_full_charge_time if self.last_full_charge_time else self.t("never")
+        return (f"Keychron M3 : {self.battery_level}% ({status_text})\n"
+                f"{self.t('autonomy')} : {self.time_remaining_str}\n"
+                f"{self.t('last_full_charge')} : {last_charge_display}\n"
+                f"{self.t('record')} : {self.last_update}")
 
     def read_battery(self):
         try:
@@ -460,6 +624,7 @@ class KeychronBatteryMonitorJJ:
         level, charging, connected = self.read_battery()
         
         if connected and level is not None:
+            self.check_full_charge(level, charging)
             if os.path.exists(HISTORY_PATH):
                 try:
                     with open(HISTORY_PATH, "r") as f:
@@ -536,5 +701,5 @@ class KeychronBatteryMonitorJJ:
         self.icon.stop()
 
 if __name__ == "__main__":
-    app = KeychronBatteryMonitorJJ()
+    app = KeychronBatteryMonitor()
     app.run()
