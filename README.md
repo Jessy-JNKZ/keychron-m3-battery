@@ -25,7 +25,7 @@
 
 ### 📸 Aperçu
 
-![Interface en Français 1](images/Keychron%20App%20FR1.png)
+![Interface en Français 1](keychron-m3-battery/images/Keychron%20App%20FR1.png)
 
 ![Interface en Français 2](images/Keychron%20App%20FR2.png)
 
