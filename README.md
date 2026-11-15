@@ -29,7 +29,7 @@
 
 ![Interface en Français 2](images/Keychron%20App%20FR2.png)
 
-![Interface en Français 2](images/Keychron App FR3.png)
+![Interface en Français 2](images/Keychron%20App%20FR3.png)
 
 ### 📦 Installation
 1. Téléchargez la dernière version de l'installeur depuis l'onglet *Releases* du dépôt.
